@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="ClassLibrary1/VerityDQ.Core.csproj" />
+  <Project Path="VerityDQ.Application/VerityDQ.Application.csproj" />
+  <Project Path="VerityDQ/VerityDQ.csproj" />
+</Solution>
