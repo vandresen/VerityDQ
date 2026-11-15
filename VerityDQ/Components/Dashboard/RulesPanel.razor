@@ -1,0 +1,56 @@
+﻿@using VerityDQ.Core.DataQuality
+
+<MudCard Outlined="true" Class="h-100">
+    <MudCardContent>
+        <MudText Typo="Typo.h6" Class="mb-3">
+            Data Quality Rules
+        </MudText>
+
+        @if (Rules is null)
+        {
+            <MudProgressLinear Indeterminate="true" />
+            <MudText Typo="Typo.body2">
+                Loading rules...
+            </MudText>
+        }
+        else if (Rules.Count == 0)
+        {
+            <MudAlert Severity="Severity.Warning">
+                No rules found for WellBore.
+            </MudAlert>
+        }
+        else
+        {
+            <MudText Typo="Typo.h4">
+                @Rules.Count
+            </MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                Active rules loaded
+            </MudText>
+
+            <MudExpansionPanels Class="mt-3">
+                <MudExpansionPanel Text="View configured rules">
+                    <MudList T="string" Dense="true">
+                        @foreach (var rule in Rules)
+                        {
+                            <MudListItem>
+                                <MudText Typo="Typo.body2">
+                                    @rule.Id — @rule.RuleName
+                                </MudText>
+                                <MudText Typo="Typo.caption"
+                                         Color="Color.Secondary">
+                                    @rule.RuleFunction
+                                </MudText>
+                            </MudListItem>
+                        }
+                    </MudList>
+                </MudExpansionPanel>
+            </MudExpansionPanels>
+        }
+    </MudCardContent>
+</MudCard>
+
+@code {
+    [Parameter]
+    public IReadOnlyList<DataQualityRule>? Rules { get; set; }
+}

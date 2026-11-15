@@ -1,0 +1,53 @@
+﻿
+<MudCard Outlined="true" Class="mb-4">
+    <MudCardContent>
+        <MudStack Row="true"
+                  AlignItems="AlignItems.Center"
+                  Justify="Justify.SpaceBetween">
+            <div>
+                <MudText Typo="Typo.h6">
+                    Data Quality Evaluation
+                </MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary">
+                    Evaluate the loaded records against the configured rules.
+                </MudText>
+            </div>
+
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       Size="Size.Large"
+                       StartIcon="@Icons.Material.Filled.PlayArrow"
+                       Disabled="@(!CanEvaluate || IsEvaluating)"
+                       OnClick="OnEvaluate">
+                @(IsEvaluating ? "Evaluating..." : "Run Evaluation")
+            </MudButton>
+        </MudStack>
+
+        @if (IsEvaluating)
+        {
+            <MudProgressLinear Indeterminate="true" Class="mt-3" />
+        }
+
+        @if (!string.IsNullOrWhiteSpace(Error))
+        {
+            <MudAlert Severity="Severity.Error" Class="mt-3">
+                @Error
+            </MudAlert>
+        }
+    </MudCardContent>
+</MudCard>
+
+@code {
+    [Parameter]
+    public bool CanEvaluate { get; set; }
+
+    [Parameter]
+    public bool IsEvaluating { get; set; }
+
+    [Parameter]
+    public string? Error { get; set; }
+
+    [Parameter]
+    public EventCallback OnEvaluate { get; set; }
+}
+

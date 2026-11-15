@@ -1,0 +1,71 @@
+﻿@using VerityDQ.Core.DataQuality
+
+<MudCard Outlined="true" Class="mb-4">
+    <MudCardContent>
+        <MudText Typo="Typo.h6" Class="mb-3">
+            Results by Rule
+        </MudText>
+
+        <MudTable T="DataQualityRuleStatistic"
+                  Items="@Statistics"
+                  Hover="true"
+                  Dense="true"
+                  Striped="true">
+
+            <HeaderContent>
+                <MudTh>Rule ID</MudTh>
+                <MudTh>Rule Name</MudTh>
+                <MudTh>Dimension</MudTh>
+                <MudTh>Records Affected</MudTh>
+                <MudTh>Findings</MudTh>
+                <MudTh>Status</MudTh>
+            </HeaderContent>
+
+            <RowTemplate Context="item">
+                <MudTd>@item.RuleId</MudTd>
+                <MudTd>@item.RuleName</MudTd>
+                <MudTd>@(item.Dimension?.ToString() ?? "Unknown")</MudTd>
+                <MudTd>@item.RecordsAffected.ToString("N0")</MudTd>
+                <MudTd>@item.TotalFindings.ToString("N0")</MudTd>
+                <MudTd>
+                    @if (RuleErrors.Any(e => e.RuleId == item.RuleId))
+                    {
+                        <MudChip T="string"
+                                 Color="Color.Warning"
+                                 Size="Size.Small">
+                            Rule error
+                        </MudChip>
+                    }
+                    else if (item.TotalFindings > 0)
+                    {
+                        <MudChip T="string"
+                                 Color="Color.Error"
+                                 Size="Size.Small">
+                            Findings
+                        </MudChip>
+                    }
+                    else
+                    {
+                        <MudChip T="string"
+                                 Color="Color.Success"
+                                 Size="Size.Small">
+                            No findings
+                        </MudChip>
+                    }
+                </MudTd>
+            </RowTemplate>
+
+        </MudTable>
+    </MudCardContent>
+</MudCard>
+
+@code {
+    [Parameter, EditorRequired]
+    public IReadOnlyList<DataQualityRuleStatistic> Statistics { get; set; }
+        = Array.Empty<DataQualityRuleStatistic>();
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<DataQualityRuleError> RuleErrors { get; set; }
+        = Array.Empty<DataQualityRuleError>();
+}
+

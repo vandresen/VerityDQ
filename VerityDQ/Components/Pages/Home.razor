@@ -1,7 +1,390 @@
-﻿@page "/"
+﻿
+@page "/"
+@using System.Text.Json
+@using Microsoft.AspNetCore.Components.Forms
+@using VerityDQ.Core.DataQuality
+@using VerityDQ.Application.Abstractions
+@inject IDataQualityRuleProvider RuleProvider
+@inject IDataQualityEngine Engine
+@inject IDataQualityAssistant Assistant
+@using Blazored.LocalStorage
+@using VerityDQ.Application.Models
+@using VerityDQ.Components.Dialogs
+@using VerityDQ.Components.Dashboard
+@inject ILocalStorageService LocalStorage
+@inject IDialogService DialogService
+@inject IWellBoreDataProvider WellBoreDataProvider
 
-<PageTitle>Home</PageTitle>
 
-<h1>Hello, world!</h1>
+<PageTitle>VerityDQ - Data Quality Dashboard</PageTitle>
 
-Welcome to your new app.
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="py-4">
+
+    @* Dashboard header *@
+    <MudStack Row="true"
+              AlignItems="AlignItems.Center"
+              Justify="Justify.SpaceBetween"
+              Class="mb-4">
+        <div>
+            <MudText Typo="Typo.h4" GutterBottom="true">
+                VerityDQ
+            </MudText>
+            <MudText Typo="Typo.subtitle1" Color="Color.Secondary">
+                Data Quality Dashboard
+            </MudText>
+        </div>
+
+        <MudButton StartIcon="@Icons.Material.Filled.Settings"
+                   Variant="Variant.Outlined"
+                   OnClick="OpenDatabaseSettings">
+            Settings
+        </MudButton>
+    </MudStack>
+
+    @* Data source and rules *@
+    <MudGrid Spacing="3" Class="mb-4">
+
+        <MudItem xs="12" md="7">
+            <DataSourcePanel OnFileSelected="LoadDataFile"
+                             OnLoadFromPPDM="LoadFromPPDM"
+                             IsLoadingDatabase="@isLoadingDatabase"
+                             FileName="@fileName"
+                             RecordCount="@(records?.Count)"
+                             Message="@message"
+                             DatabaseMessage="@databaseMessage"
+                             DatabaseMessageSeverity="@databaseMessageSeverity" />
+        </MudItem>
+
+        <MudItem xs="12" md="5">
+            <RulesPanel Rules="@rules" />
+        </MudItem>
+
+    </MudGrid>
+
+    @* Evaluation action *@
+    <EvaluationPanel CanEvaluate="@(records is not null &&
+                     records.Count > 0 &&
+                     rules is not null &&
+                     rules.Count > 0)"
+                     IsEvaluating="@isEvaluating"
+                     Error="@evaluationError"
+                     OnEvaluate="RunDataQuality" />
+
+    @* Evaluation results *@
+    @if (report is not null)
+    {
+        <MudText Typo="Typo.h5" Class="mb-3">
+            Evaluation Results
+        </MudText>
+
+        @* Summary metrics *@
+        <MudGrid Spacing="3" Class="mb-4">
+
+            <MetricCard Title="Records Evaluated"
+            Value="@report.RecordsEvaluated.ToString("N0")" />
+
+            <MetricCard Title="With Issues"
+                        Value="@report.RecordsWithIssues.ToString("N0")"
+                        ValueColor="Color.Error" />
+
+            <MetricCard Title="Passed"
+                        Value="@report.RecordsPassed.ToString("N0")"
+                        ValueColor="@(report.RecordsPassed > 0 ? Color.Success : Color.Error)" />
+
+            <MetricCard Title="Findings"
+                        Value="@report.TotalFindings.ToString("N0")" />
+
+            <MetricCard Title="Pass Rate"
+                        Value="@($"{report.PassRate:F2}%")"
+                        ValueColor="@(report.PassRate >= 95 ? Color.Success :
+                         report.PassRate >= 80 ? Color.Warning :
+                         Color.Error)" />
+
+        </MudGrid>
+
+        @* Dimension coverage *@
+        <DimensionCoverage Statistics="@report.DimensionStatistics" />
+
+        @* Rule statistics *@
+        <RuleStatistics Statistics="@report.RuleStatistics"
+                        RuleErrors="@report.RuleErrors" />
+
+        @* Detailed findings and rule errors *@
+        <EvaluationDetails Findings="@report.Findings"
+                           RuleErrors="@report.RuleErrors" />
+
+        @* AI analysis *@
+        <AiAnalysis IsExplaining="@isExplaining"
+                    Explanation="@aiExplanation"
+                    Error="@aiError"
+                    OnAnalyze="ExplainReport" />
+            }
+
+        </MudContainer>
+
+@code {
+    private const long MaxFileSize = 10 * 1024 * 1024;
+
+    private List<DataQualityRule>? rules;
+    private List<JsonElement>? records;
+
+    private string? fileName;
+    private string? message;
+
+    private DataQualityReport? report;
+    private bool isEvaluating;
+    private string? evaluationError;
+
+    private bool isExplaining;
+    private string? aiExplanation;
+    private string? aiError;
+
+    private bool isLoadingDatabase;
+    private string? databaseMessage;
+    private Severity databaseMessageSeverity = Severity.Info;
+
+    private const string SettingsKey = "VerityDQ.UserSettings";
+
+    protected override async Task OnInitializedAsync()
+    {
+        rules = (await RuleProvider.GetRulesAsync("WellBore")).ToList();
+    }
+
+    private void ResetEvaluationState()
+    {
+        report = null;
+        aiExplanation = null;
+        aiError = null;
+        evaluationError = null;
+    }
+
+    private async Task LoadDataFile(InputFileChangeEventArgs e)
+    {
+        ResetEvaluationState();
+
+        records = null;
+        fileName = e.File.Name;
+        message = null;
+        databaseMessage = null;
+
+        try
+        {
+            await using var stream = e.File.OpenReadStream(MaxFileSize);
+
+            using var document = await JsonDocument.ParseAsync(stream);
+
+            if (document.RootElement.ValueKind != JsonValueKind.Array)
+            {
+                message = "Invalid JSON format. Expected an array of records.";
+                return;
+            }
+
+            records = document.RootElement
+                .EnumerateArray()
+                .Select(record => record.Clone())
+                .ToList();
+
+            message = "Data file loaded successfully.";
+        }
+        catch (JsonException ex)
+        {
+            message = $"Invalid JSON: {ex.Message}";
+        }
+        catch (IOException ex)
+        {
+            message = $"Unable to read file: {ex.Message}";
+        }
+        catch (InvalidOperationException ex)
+        {
+            message = $"Unable to load file: {ex.Message}";
+        }
+    }
+
+    private async Task RunDataQuality()
+    {
+        if (isEvaluating ||
+            records is null ||
+            records.Count == 0 ||
+            rules is null ||
+            rules.Count == 0)
+        {
+            return;
+        }
+
+        ResetEvaluationState();
+        evaluationError = null;
+        isEvaluating = true;
+
+        try
+        {
+            var request = new DataQualityEvaluationRequest
+            {
+                DataType = "WellBore",
+                Records = records,
+                Rules = rules
+            };
+
+            report = await Engine.EvaluateAsync(request);
+        }
+        catch (Exception ex)
+        {
+            report = null;
+            evaluationError = $"Data quality evaluation failed: {ex.Message}";
+        }
+        finally
+        {
+            isEvaluating = false;
+        }
+    }
+
+    private async Task ExplainReport()
+    {
+        if (report is null)
+            return;
+
+        isExplaining = true;
+        aiExplanation = null;
+        aiError = null;
+
+        try
+        {
+            var settings = await LocalStorage
+                .GetItemAsync<UserConnectionSettings>(SettingsKey);
+
+            if (settings is null ||
+                string.IsNullOrWhiteSpace(settings.OpenAIApiKey))
+            {
+                throw new InvalidOperationException(
+                    "Please enter your OpenAI API key in Database Settings.");
+            }
+
+            aiExplanation = await Assistant.ExplainReportAsync(
+                report,
+                settings.OpenAIApiKey,
+                settings.OpenAIModel);
+        }
+        catch (Exception ex)
+        {
+            aiError = ex.Message;
+        }
+        finally
+        {
+            isExplaining = false;
+        }
+    }
+
+    private async Task OpenDatabaseSettings()
+    {
+        var settings = await LocalStorage
+            .GetItemAsync<UserConnectionSettings>(SettingsKey)
+            ?? new UserConnectionSettings();
+
+        var parameters = new DialogParameters<SettingsDialog>
+    {
+        { x => x.Settings, settings }
+    };
+
+        var options = new DialogOptions
+        {
+            CloseButton = true,
+            MaxWidth = MaxWidth.Medium,
+            FullWidth = true
+        };
+
+        var dialog = await DialogService.ShowAsync<SettingsDialog>(
+            "Database Settings", parameters, options);
+
+        var result = await dialog.Result;
+
+        if (result is not null && !result.Canceled &&
+            result.Data is UserConnectionSettings updatedSettings)
+        {
+            await LocalStorage.SetItemAsync(SettingsKey, updatedSettings);
+
+            // Clear any previous AI explanation because the API settings may have changed.
+            aiExplanation = null;
+            aiError = null;
+        }
+    }
+
+    private async Task LoadFromPPDM()
+    {
+        ResetEvaluationState();
+
+        isLoadingDatabase = true;
+        databaseMessage = null;
+        databaseMessageSeverity = Severity.Info;
+
+        records = null;
+        fileName = null;
+        message = null;
+
+        try
+        {
+            var settings = await LocalStorage
+                .GetItemAsync<UserConnectionSettings>(SettingsKey);
+
+            if (settings is null)
+                throw new InvalidOperationException(
+                    "Please configure your database connection first.");
+
+            if (string.IsNullOrWhiteSpace(settings.Server) ||
+                string.IsNullOrWhiteSpace(settings.Database))
+            {
+                throw new InvalidOperationException(
+                    "SQL Server and database are required.");
+            }
+
+            var connectionBuilder =
+                new Microsoft.Data.SqlClient.SqlConnectionStringBuilder
+                {
+                    DataSource = settings.Server,
+                    InitialCatalog = settings.Database,
+                    TrustServerCertificate = settings.TrustServerCertificate,
+                    Encrypt = true,
+                    ConnectTimeout = 15
+                };
+
+            if (settings.AuthenticationType == "Windows")
+            {
+                connectionBuilder.IntegratedSecurity = true;
+            }
+            else
+            {
+                if (string.IsNullOrWhiteSpace(settings.UserName) ||
+                    string.IsNullOrWhiteSpace(settings.Password))
+                {
+                    throw new InvalidOperationException(
+                        "SQL Server username and password are required.");
+                }
+
+                connectionBuilder.UserID = settings.UserName;
+                connectionBuilder.Password = settings.Password;
+            }
+
+            var loadedRecords =
+                await WellBoreDataProvider.GetWellBoresAsync(
+                    connectionBuilder.ConnectionString);
+
+            records = loadedRecords.ToList();
+
+            databaseMessage =
+                $"Successfully loaded {records.Count:N0} WellBore records from {settings.Database}.dbo.WELL.";
+
+            databaseMessageSeverity = Severity.Success;
+        }
+        catch (Exception ex)
+        {
+            records = null;
+            databaseMessage = $"Database loading failed: {ex.Message}";
+            databaseMessageSeverity = Severity.Error;
+        }
+        finally
+        {
+            isLoadingDatabase = false;
+        }
+    }
+
+    
+
+}

@@ -1,0 +1,87 @@
+﻿@using VerityDQ.Core.DataQuality
+
+<MudCard Outlined="true" Class="mb-4">
+    <MudCardContent>
+        <MudText Typo="Typo.h6" Class="mb-3">
+            Evaluation Details
+        </MudText>
+
+        <MudExpansionPanels MultiExpansion="true">
+
+            <MudExpansionPanel Text="@($"Data Quality Findings ({Findings.Count})")">
+                @if (Findings.Count == 0)
+                {
+                    <MudAlert Severity="Severity.Success">
+                        No data quality findings.
+                    </MudAlert>
+                }
+                else
+                {
+                    <MudTable T="DataQualityFinding"
+                              Items="@Findings"
+                              Hover="true"
+                              Dense="true"
+                              Striped="true">
+                        <HeaderContent>
+                            <MudTh>Rule</MudTh>
+                            <MudTh>Dimension</MudTh>
+                            <MudTh>Title</MudTh>
+                            <MudTh>Description</MudTh>
+                            <MudTh>Record</MudTh>
+                        </HeaderContent>
+
+                        <RowTemplate Context="item">
+                            <MudTd>@item.RuleId</MudTd>
+                            <MudTd>@item.Dimension</MudTd>
+                            <MudTd>@item.Title</MudTd>
+                            <MudTd>@item.Description</MudTd>
+                            <MudTd>@(item.RecordIdentifier ?? "—")</MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                }
+            </MudExpansionPanel>
+
+            <MudExpansionPanel Text="@($"Rule Errors ({RuleErrors.Count})")">
+                @if (RuleErrors.Count == 0)
+                {
+                    <MudAlert Severity="Severity.Success">
+                        No rule configuration errors.
+                    </MudAlert>
+                }
+                else
+                {
+                    <MudTable T="DataQualityRuleError"
+                              Items="@RuleErrors"
+                              Hover="true"
+                              Dense="true"
+                              Striped="true">
+                        <HeaderContent>
+                            <MudTh>Rule ID</MudTh>
+                            <MudTh>Rule Name</MudTh>
+                            <MudTh>Function</MudTh>
+                            <MudTh>Error</MudTh>
+                        </HeaderContent>
+
+                        <RowTemplate Context="item">
+                            <MudTd>@item.RuleId</MudTd>
+                            <MudTd>@item.RuleName</MudTd>
+                            <MudTd>@item.RuleFunction</MudTd>
+                            <MudTd>@item.Message</MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                }
+            </MudExpansionPanel>
+
+        </MudExpansionPanels>
+    </MudCardContent>
+</MudCard>
+
+@code {
+    [Parameter, EditorRequired]
+    public IReadOnlyList<DataQualityFinding> Findings { get; set; }
+        = Array.Empty<DataQualityFinding>();
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<DataQualityRuleError> RuleErrors { get; set; }
+        = Array.Empty<DataQualityRuleError>();
+}

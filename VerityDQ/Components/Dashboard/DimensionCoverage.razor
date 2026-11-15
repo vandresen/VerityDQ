@@ -1,0 +1,58 @@
+﻿@using VerityDQ.Core.DataQuality
+
+<MudCard Outlined="true" Class="mb-4">
+    <MudCardContent>
+        <MudText Typo="Typo.h6" Class="mb-3">
+            Evaluation Coverage by Dimension
+        </MudText>
+
+        <MudTable T="DataQualityDimensionStatistic"
+                  Items="@Statistics"
+                  Hover="true"
+                  Dense="true"
+                  Striped="true">
+
+            <HeaderContent>
+                <MudTh>Dimension</MudTh>
+                <MudTh>Rules Configured</MudTh>
+                <MudTh>Rules Executed</MudTh>
+                <MudTh>Records Affected</MudTh>
+                <MudTh>Findings</MudTh>
+                <MudTh>Status</MudTh>
+            </HeaderContent>
+
+            <RowTemplate Context="item">
+                <MudTd>@item.Dimension</MudTd>
+                <MudTd>@item.RulesConfigured</MudTd>
+                <MudTd>@item.RulesExecuted</MudTd>
+                <MudTd>@item.RecordsAffected.ToString("N0")</MudTd>
+                <MudTd>@item.TotalFindings.ToString("N0")</MudTd>
+                <MudTd>
+                    @if (item.WasEvaluated)
+                    {
+                        <MudChip T="string"
+                                 Color="Color.Success"
+                                 Size="Size.Small">
+                            Evaluated
+                        </MudChip>
+                    }
+                    else
+                    {
+                        <MudChip T="string"
+                                 Color="Color.Default"
+                                 Size="Size.Small">
+                            Not evaluated
+                        </MudChip>
+                    }
+                </MudTd>
+            </RowTemplate>
+
+        </MudTable>
+    </MudCardContent>
+</MudCard>
+
+@code {
+    [Parameter, EditorRequired]
+    public IReadOnlyList<DataQualityDimensionStatistic> Statistics { get; set; }
+        = Array.Empty<DataQualityDimensionStatistic>();
+}

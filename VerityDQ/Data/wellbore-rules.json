@@ -1,0 +1,30 @@
+[
+  {
+    "id": 301,
+    "active": "Y",
+    "dataType": "WellBore",
+    "dataAttribute": "GROUND_ELEV",
+    "ruleType": "Completeness",
+    "ruleName": "Missing ground elevation",
+    "ruleDescription": "Ground elevation must be populated.",
+    "ruleFunction": "Completeness",
+    "ruleKey": "C1",
+    "keyNumber": 1,
+    "ruleParameters": "",
+    "ruleFilter": ""
+  },
+  {
+    "id": 149,
+    "active": "Y",
+    "dataType": "WellBore",
+    "dataAttribute": "DEPTH_DATUM_ELEV",
+    "ruleType": "Validity",
+    "ruleName": "Invalid depth datum elevation",
+    "ruleDescription": "Depth datum elevation must be between 0 and 5000.",
+    "ruleFunction": "ValidityRange",
+    "ruleKey": "V1",
+    "keyNumber": 1,
+    "ruleParameters": "{MinRange:0, MaxRange:5000}",
+    "ruleFilter": ""
+  }
+]

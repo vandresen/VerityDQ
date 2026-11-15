@@ -1,3 +1,9 @@
+using Blazored.LocalStorage;
+using MudBlazor.Services;
+using VerityDQ.Application;
+using VerityDQ.Application.Abstractions;
+using VerityDQ.Application.Agents;
+using VerityDQ.Application.Data;
 using VerityDQ.Components;
 
 namespace VerityDQ
@@ -12,13 +18,33 @@ namespace VerityDQ
             builder.Services.AddRazorComponents()
                 .AddInteractiveServerComponents();
 
-            var app = builder.Build();
+            builder.Services.AddScoped<IDataQualityEngine, DataQualityEngine>();
+
+            builder.Services.AddScoped<IDataQualityRuleProvider>(sp =>
+            {
+                var environment = sp.GetRequiredService<IWebHostEnvironment>();
+
+                return new JsonDataQualityRuleProvider(
+                    Path.Combine(
+                        environment.ContentRootPath,
+                        "Data",
+                        "wellbore-rules.json"));
+            });
+
+            builder.Services.AddMudServices();
+
+            
+
+            builder.Services.AddScoped<IDataQualityAssistant, DataQualityAssistant>();
+            builder.Services.AddScoped<IWellBoreDataProvider, SqlServerWellBoreDataProvider>();
+            builder.Services.AddBlazoredLocalStorage();
+
+            var app = builder.Build();   // moved here, after all registrations
 
             // Configure the HTTP request pipeline.
             if (!app.Environment.IsDevelopment())
             {
                 app.UseExceptionHandler("/Error");
-                // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
                 app.UseHsts();
             }
 

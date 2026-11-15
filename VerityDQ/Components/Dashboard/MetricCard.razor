@@ -1,0 +1,23 @@
+﻿
+<MudItem xs="6" sm="4" md="2">
+    <MudPaper Outlined="true" Class="pa-3 h-100">
+        <MudText Typo="Typo.body2" Color="Color.Secondary">
+            @Title
+        </MudText>
+
+        <MudText Typo="Typo.h4" Color="@ValueColor">
+            @Value
+        </MudText>
+    </MudPaper>
+</MudItem>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string Value { get; set; } = string.Empty;
+
+    [Parameter]
+    public Color ValueColor { get; set; } = Color.Default;
+}

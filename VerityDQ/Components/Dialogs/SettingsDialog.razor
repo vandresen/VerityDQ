@@ -1,0 +1,126 @@
+﻿@using MudBlazor
+@using VerityDQ.Application.Models
+
+<MudDialog>
+    <DialogContent>
+        <MudTabs Rounded="true">
+
+            <MudTabPanel Text="SQL Server">
+                <MudStack Spacing="3" Class="pa-3">
+
+                    <MudTextField T="string"
+                                  Label="Server"
+                                  @bind-Value="_settings.Server"
+                                  Placeholder="localhost or server\instance"
+                                  Required="true"
+                                  Variant="Variant.Outlined" />
+
+                    <MudTextField T="string"
+                                  Label="Database"
+                                  @bind-Value="_settings.Database"
+                                  Required="true"
+                                  Variant="Variant.Outlined" />
+
+                    <MudSelect T="string"
+                               Label="Authentication"
+                               @bind-Value="_settings.AuthenticationType"
+                               Variant="Variant.Outlined">
+                        <MudSelectItem Value="@("SqlServer")">
+                            SQL Server Authentication
+                        </MudSelectItem>
+                        <MudSelectItem Value="@("Windows")">
+                            Windows Authentication
+                        </MudSelectItem>
+                    </MudSelect>
+
+                    @if (_settings.AuthenticationType == "SqlServer")
+                    {
+                        <MudTextField T="string"
+                                      Label="User name"
+                                      @bind-Value="_settings.UserName"
+                                      Variant="Variant.Outlined" />
+
+                        <MudTextField T="string"
+                                      Label="Password"
+                                      @bind-Value="_settings.Password"
+                                      InputType="InputType.Password"
+                                      Variant="Variant.Outlined" />
+                    }
+
+                    <MudCheckBox T="bool"
+                                 @bind-Value="_settings.TrustServerCertificate"
+                                 Label="Trust server certificate" />
+
+                </MudStack>
+            </MudTabPanel>
+
+            <MudTabPanel Text="OpenAI">
+                <MudStack Spacing="3" Class="pa-3">
+
+                    <MudTextField T="string"
+                                  Label="OpenAI API Key"
+                                  @bind-Value="_settings.OpenAIApiKey"
+                                  InputType="InputType.Password"
+                                  Variant="Variant.Outlined"
+                                  HelperText="Your API key is stored in this browser's local storage." />
+
+                    <MudTextField T="string"
+                                  Label="Model"
+                                  @bind-Value="_settings.OpenAIModel"
+                                  Variant="Variant.Outlined"
+                                  HelperText="For example: gpt-4.1-mini" />
+
+                </MudStack>
+            </MudTabPanel>
+
+        </MudTabs>
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton OnClick="Cancel">
+            Cancel
+        </MudButton>
+
+        <MudButton Color="Color.Primary"
+                   Variant="Variant.Filled"
+                   OnClick="Save">
+            Save Settings
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter]
+    public UserConnectionSettings Settings { get; set; } = new();
+
+    private UserConnectionSettings _settings = new();
+
+    protected override void OnInitialized()
+    {
+        Console.WriteLine($"SettingsDialog: OnInitialized - Settings: {Settings}");
+        _settings = new UserConnectionSettings
+        {
+            Server = Settings.Server,
+            Database = Settings.Database,
+            AuthenticationType = Settings.AuthenticationType,
+            UserName = Settings.UserName,
+            Password = Settings.Password,
+            TrustServerCertificate = Settings.TrustServerCertificate,
+            OpenAIApiKey = Settings.OpenAIApiKey,
+            OpenAIModel = Settings.OpenAIModel
+        };
+    }
+
+    private void Save()
+    {
+        MudDialog.Close(DialogResult.Ok(_settings));
+    }
+
+    private void Cancel()
+    {
+        MudDialog.Cancel();
+    }
+}

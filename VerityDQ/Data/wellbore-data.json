@@ -1,0 +1,14 @@
+[
+  {
+    "UWI": "15003715520000",
+    "GROUND_ELEV": 1030,
+    "COMPLETION_DATE": "2024-05-10",
+    "FINAL_TD": 8500
+  },
+  {
+    "UWI": "15003715520001",
+    "GROUND_ELEV": null,
+    "COMPLETION_DATE": "2024-06-15",
+    "FINAL_TD": 9200
+  }
+]

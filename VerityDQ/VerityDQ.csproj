@@ -5,10 +5,16 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+    <UserSecretsId>2e86a55c-81ad-4020-988c-5289dfab87eb</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\ClassLibrary1\VerityDQ.Core.csproj" />
+    <PackageReference Include="Blazor.Storage" Version="5.0.0" />
+    <PackageReference Include="MudBlazor" Version="9.12.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\VerityDQ.Core\VerityDQ.Core.csproj" />
     <ProjectReference Include="..\VerityDQ.Application\VerityDQ.Application.csproj" />
   </ItemGroup>
 
