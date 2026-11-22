@@ -3,7 +3,12 @@
 <MudCard Outlined="true" Class="h-100">
     <MudCardContent>
         <MudText Typo="Typo.h6" Class="mb-3">
-            Data Source
+            Data Sources
+        </MudText>
+
+        @* Primary data *@
+        <MudText Typo="Typo.subtitle1">
+            Primary Data
         </MudText>
 
         <MudText Typo="Typo.body2" Color="Color.Secondary">
@@ -13,7 +18,8 @@
         <MudStack Row="true"
                   AlignItems="AlignItems.Center"
                   Spacing="2"
-                  Class="mt-4">
+                  Class="mt-3">
+
             <InputFile OnChange="OnFileSelected"
                        accept=".json,application/json"
                        class="verity-file-input" />
@@ -23,6 +29,7 @@
                        StartIcon="@Icons.Material.Filled.Storage"
                        OnClick="OnLoadFromPPDM"
                        Disabled="@IsLoadingDatabase">
+
                 @(IsLoadingDatabase ? "Connecting..." : "Load from PPDM")
             </MudButton>
         </MudStack>
@@ -53,11 +60,78 @@
 
         @if (!string.IsNullOrWhiteSpace(DatabaseMessage))
         {
-            <MudAlert Severity="@DatabaseMessageSeverity"
-                      Class="mt-3">
+            <MudAlert Severity="@DatabaseMessageSeverity" Class="mt-3">
                 @DatabaseMessage
             </MudAlert>
         }
+
+        <MudDivider Class="my-4" />
+
+        @* Reference data *@
+        <MudText Typo="Typo.subtitle1">
+            Reference Data
+        </MudText>
+
+        <MudText Typo="Typo.body2" Color="Color.Secondary">
+            Load matching WellBore records from the reference PPDM database
+            or upload a JSON file.
+        </MudText>
+
+        <MudStack Row="true"
+                  AlignItems="AlignItems.Center"
+                  Spacing="2"
+                  Class="mt-3">
+
+            <InputFile OnChange="OnReferenceFileSelected"
+                       accept=".json,application/json"
+                       class="verity-file-input" />
+
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Storage"
+                       OnClick="OnLoadReferenceFromPPDM"
+                       Disabled="@IsLoadingReferenceDatabase">
+
+                @(IsLoadingReferenceDatabase
+                    ? "Connecting..."
+                    : "Load from Reference PPDM")
+            </MudButton>
+
+            @if (ReferenceRecordCount.HasValue)
+            {
+                <MudButton Variant="Variant.Text"
+                           Color="Color.Error"
+                           OnClick="OnClearReferenceData">
+                    Clear
+                </MudButton>
+            }
+
+        </MudStack>
+
+        @if (!string.IsNullOrWhiteSpace(ReferenceFileName))
+        {
+            <MudText Typo="Typo.body2" Class="mt-3">
+                File: @ReferenceFileName
+            </MudText>
+        }
+
+        @if (ReferenceRecordCount.HasValue)
+        {
+            <MudChip T="string"
+                     Color="Color.Success"
+                     Size="Size.Small"
+                     Class="mt-2">
+                @ReferenceRecordCount.Value.ToString("N0") reference records loaded
+            </MudChip>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(ReferenceMessage))
+        {
+            <MudAlert Severity="@ReferenceMessageSeverity" Class="mt-3">
+                @ReferenceMessage
+            </MudAlert>
+        }
+
     </MudCardContent>
 </MudCard>
 
@@ -69,7 +143,19 @@
     public EventCallback OnLoadFromPPDM { get; set; }
 
     [Parameter]
+    public EventCallback<InputFileChangeEventArgs> OnReferenceFileSelected { get; set; }
+
+    [Parameter]
+    public EventCallback OnLoadReferenceFromPPDM { get; set; }
+
+    [Parameter]
+    public EventCallback OnClearReferenceData { get; set; }
+
+    [Parameter]
     public bool IsLoadingDatabase { get; set; }
+
+    [Parameter]
+    public bool IsLoadingReferenceDatabase { get; set; }
 
     [Parameter]
     public string? FileName { get; set; }
@@ -85,5 +171,18 @@
 
     [Parameter]
     public Severity DatabaseMessageSeverity { get; set; }
+        = Severity.Info;
+
+    [Parameter]
+    public string? ReferenceFileName { get; set; }
+
+    [Parameter]
+    public int? ReferenceRecordCount { get; set; }
+
+    [Parameter]
+    public string? ReferenceMessage { get; set; }
+
+    [Parameter]
+    public Severity ReferenceMessageSeverity { get; set; }
         = Severity.Info;
 }

@@ -5,6 +5,7 @@
     <DialogContent>
         <MudTabs Rounded="true">
 
+            @* Primary SQL Server *@
             <MudTabPanel Text="SQL Server">
                 <MudStack Spacing="3" Class="pa-3">
 
@@ -54,6 +55,55 @@
                 </MudStack>
             </MudTabPanel>
 
+            @* Reference SQL Server *@
+            <MudTabPanel Text="Reference Database">
+                <MudStack Spacing="3" Class="pa-3">
+
+                    <MudTextField T="string"
+                                  Label="Server"
+                                  @bind-Value="_settings.ReferenceServer"
+                                  Placeholder="reference-server\instance"
+                                  Variant="Variant.Outlined" />
+
+                    <MudTextField T="string"
+                                  Label="Database"
+                                  @bind-Value="_settings.ReferenceDatabase"
+                                  Variant="Variant.Outlined" />
+
+                    <MudSelect T="string"
+                               Label="Authentication"
+                               @bind-Value="_settings.ReferenceAuthenticationType"
+                               Variant="Variant.Outlined">
+                        <MudSelectItem Value="@("SqlServer")">
+                            SQL Server Authentication
+                        </MudSelectItem>
+                        <MudSelectItem Value="@("Windows")">
+                            Windows Authentication
+                        </MudSelectItem>
+                    </MudSelect>
+
+                    @if (_settings.ReferenceAuthenticationType == "SqlServer")
+                    {
+                        <MudTextField T="string"
+                                      Label="User name"
+                                      @bind-Value="_settings.ReferenceUserName"
+                                      Variant="Variant.Outlined" />
+
+                        <MudTextField T="string"
+                                      Label="Password"
+                                      @bind-Value="_settings.ReferencePassword"
+                                      InputType="InputType.Password"
+                                      Variant="Variant.Outlined" />
+                    }
+
+                    <MudCheckBox T="bool"
+                                 @bind-Value="_settings.ReferenceTrustServerCertificate"
+                                 Label="Trust server certificate" />
+
+                </MudStack>
+            </MudTabPanel>
+
+            @* OpenAI *@
             <MudTabPanel Text="OpenAI">
                 <MudStack Spacing="3" Class="pa-3">
 
@@ -100,7 +150,6 @@
 
     protected override void OnInitialized()
     {
-        Console.WriteLine($"SettingsDialog: OnInitialized - Settings: {Settings}");
         _settings = new UserConnectionSettings
         {
             Server = Settings.Server,
@@ -109,6 +158,14 @@
             UserName = Settings.UserName,
             Password = Settings.Password,
             TrustServerCertificate = Settings.TrustServerCertificate,
+
+            ReferenceServer = Settings.ReferenceServer,
+            ReferenceDatabase = Settings.ReferenceDatabase,
+            ReferenceAuthenticationType = Settings.ReferenceAuthenticationType,
+            ReferenceUserName = Settings.ReferenceUserName,
+            ReferencePassword = Settings.ReferencePassword,
+            ReferenceTrustServerCertificate = Settings.ReferenceTrustServerCertificate,
+
             OpenAIApiKey = Settings.OpenAIApiKey,
             OpenAIModel = Settings.OpenAIModel
         };

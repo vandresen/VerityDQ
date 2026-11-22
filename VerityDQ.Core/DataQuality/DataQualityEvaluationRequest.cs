@@ -9,6 +9,9 @@ namespace VerityDQ.Core.DataQuality
         public IReadOnlyList<JsonElement> Records { get; set; }
             = Array.Empty<JsonElement>();
 
+        public IReadOnlyList<JsonElement> ReferenceRecords { get; set; }
+            = Array.Empty<JsonElement>();
+
         public IReadOnlyList<DataQualityRule> Rules { get; set; }
             = Array.Empty<DataQualityRule>();
     }

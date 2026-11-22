@@ -814,5 +814,406 @@ public sealed class DataQualityEngineTests
         Assert.False(uniqueness.WasEvaluated);
     }
 
+    [Fact]
+    public async Task EvaluateAsync_ConsistencyWithinTolerance_ReturnsNoFindings()
+    {
+        var request = new DataQualityEvaluationRequest
+        {
+            DataType = "WellBore",
+
+            Records = new[]
+            {
+            CreateRecord("""
+            {
+                "UWI": "15003715520000",
+                "GROUND_ELEV": 1030.00005
+            }
+            """)
+        },
+
+            ReferenceRecords = new[]
+            {
+            CreateRecord("""
+            {
+                "UWI": "15003715520000",
+                "GROUND_ELEV": 1030.00000
+            }
+            """)
+        },
+
+            Rules = new[]
+            {
+            new DataQualityRule
+            {
+                Id = 2,
+                Active = "Y",
+                DataType = "WellBore",
+                DataAttribute = "GROUND_ELEV",
+                RuleType = "Consistency",
+                RuleName = "Inconsistent ground elevation",
+                RuleFunction = "Consistency",
+                RuleParameters = "{Tolerance:0.0001}"
+            }
+        }
+        };
+
+        var engine = new DataQualityEngine();
+
+        var report = await engine.EvaluateAsync(request);
+
+        Assert.Empty(report.Findings);
+        Assert.Empty(report.RuleErrors);
+    }
+
+
+    [Fact]
+    public async Task EvaluateAsync_ConsistencyOutsideTolerance_ReturnsFinding()
+    {
+        var request = new DataQualityEvaluationRequest
+        {
+            DataType = "WellBore",
+            Records = new[]
+            {
+            CreateRecord("""
+            {
+                "UWI": "15003715520000",
+                "GROUND_ELEV": 1030.00020
+            }
+            """)
+        },
+            ReferenceRecords = new[]
+            {
+            CreateRecord("""
+            {
+                "UWI": "15003715520000",
+                "GROUND_ELEV": 1030.00000
+            }
+            """)
+        },
+            Rules = new[]
+            {
+            new DataQualityRule
+            {
+                Id = 2,
+                Active = "Y",
+                DataType = "WellBore",
+                DataAttribute = "GROUND_ELEV",
+                RuleType = "Consistency",
+                RuleName = "Inconsistent ground elevation",
+                RuleFunction = "Consistency",
+                RuleParameters = "{Tolerance:0.0001}"
+            }
+        }
+        };
+
+        var engine = new DataQualityEngine();
+        var report = await engine.EvaluateAsync(request);
+
+        Assert.Empty(report.RuleErrors);
+        Assert.Single(report.Findings);
+
+        var finding = report.Findings[0];
+
+        Assert.Equal("Inconsistent ground elevation", finding.Title);
+        Assert.Equal(DataQualityDimension.Consistency, finding.Dimension);
+        Assert.Equal("15003715520000", finding.RecordIdentifier);
+    }
+
+
+    [Fact]
+    public async Task EvaluateAsync_ConsistencyDifferentStrings_ReturnsFinding()
+    {
+        var request = new DataQualityEvaluationRequest
+        {
+            DataType = "WellBore",
+            Records = new[]
+            {
+            CreateRecord("""
+            {
+                "UWI": "15003715520000",
+                "OPERATOR": "CHEVRON"
+            }
+            """)
+        },
+            ReferenceRecords = new[]
+            {
+            CreateRecord("""
+            {
+                "UWI": "15003715520000",
+                "OPERATOR": "EXXON"
+            }
+            """)
+        },
+            Rules = new[]
+            {
+            new DataQualityRule
+            {
+                Id = 3,
+                Active = "Y",
+                DataType = "WellBore",
+                DataAttribute = "OPERATOR",
+                RuleType = "Consistency",
+                RuleName = "Inconsistent operator",
+                RuleFunction = "Consistency",
+                RuleParameters = ""
+            }
+        }
+        };
+
+        var engine = new DataQualityEngine();
+        var report = await engine.EvaluateAsync(request);
+
+        Assert.Empty(report.RuleErrors);
+        Assert.Single(report.Findings);
+
+        var finding = report.Findings[0];
+
+        Assert.Equal("Inconsistent operator", finding.Title);
+        Assert.Equal(DataQualityDimension.Consistency, finding.Dimension);
+        Assert.Equal("15003715520000", finding.RecordIdentifier);
+    }
+
+
+    [Fact]
+    public async Task EvaluateAsync_ConsistencySkippedValues_ReturnsNoFindings()
+    {
+        var request = new DataQualityEvaluationRequest
+        {
+            DataType = "WellBore",
+            Records = new[]
+            {
+            CreateRecord("""
+            {
+                "UWI": "1001",
+                "OPERATOR": null
+            }
+            """),
+            CreateRecord("""
+            {
+                "UWI": "1002",
+                "OPERATOR": "UNKNOWN"
+            }
+            """),
+            CreateRecord("""
+            {
+                "UWI": "1003",
+                "OPERATOR": "CHEVRON"
+            }
+            """)
+        },
+            ReferenceRecords = new[]
+            {
+            CreateRecord("""
+            {
+                "UWI": "1001",
+                "OPERATOR": "CHEVRON"
+            }
+            """),
+            CreateRecord("""
+            {
+                "UWI": "1002",
+                "OPERATOR": "EXXON"
+            }
+            """),
+            CreateRecord("""
+            {
+                "UWI": "1003",
+                "OPERATOR": "NA"
+            }
+            """)
+        },
+            Rules = new[]
+            {
+            new DataQualityRule
+            {
+                Id = 3,
+                Active = "Y",
+                DataType = "WellBore",
+                DataAttribute = "OPERATOR",
+                RuleType = "Consistency",
+                RuleName = "Inconsistent operator",
+                RuleFunction = "Consistency",
+                RuleParameters = ""
+            }
+        }
+        };
+
+        var engine = new DataQualityEngine();
+        var report = await engine.EvaluateAsync(request);
+
+        Assert.Empty(report.RuleErrors);
+        Assert.Empty(report.Findings);
+    }
+
+
+    [Fact]
+    public async Task EvaluateAsync_ConsistencyMissingReferenceUwi_ReturnsFinding()
+    {
+        var request = new DataQualityEvaluationRequest
+        {
+            DataType = "WellBore",
+            Records = new[]
+            {
+            CreateRecord("""
+            {
+                "UWI": "15003715520000",
+                "OPERATOR": "CHEVRON"
+            }
+            """)
+        },
+            ReferenceRecords = new[]
+            {
+            CreateRecord("""
+            {
+                "UWI": "15003715529999",
+                "OPERATOR": "CHEVRON"
+            }
+            """)
+        },
+            Rules = new[]
+            {
+            new DataQualityRule
+            {
+                Id = 3,
+                Active = "Y",
+                DataType = "WellBore",
+                DataAttribute = "OPERATOR",
+                RuleType = "Consistency",
+                RuleName = "Inconsistent operator",
+                RuleFunction = "Consistency",
+                RuleParameters = ""
+            }
+        }
+        };
+
+        var engine = new DataQualityEngine();
+        var report = await engine.EvaluateAsync(request);
+
+        Assert.Empty(report.RuleErrors);
+        Assert.Single(report.Findings);
+
+        var finding = report.Findings[0];
+
+        Assert.Equal("Inconsistent operator", finding.Title);
+        Assert.Equal(DataQualityDimension.Consistency, finding.Dimension);
+        Assert.Equal("15003715520000", finding.RecordIdentifier);
+        Assert.Contains("No reference record", finding.Description);
+    }
+
+
+    [Fact]
+    public async Task EvaluateAsync_ConsistencyDuplicateReferenceUwi_ReturnsRuleError()
+    {
+        var request = new DataQualityEvaluationRequest
+        {
+            DataType = "WellBore",
+            Records = new[]
+            {
+            CreateRecord("""
+            {
+                "UWI": "15003715520000",
+                "OPERATOR": "CHEVRON"
+            }
+            """)
+        },
+            ReferenceRecords = new[]
+            {
+            CreateRecord("""
+            {
+                "UWI": "15003715520000",
+                "OPERATOR": "CHEVRON"
+            }
+            """),
+            CreateRecord("""
+            {
+                "UWI": "15003715520000",
+                "OPERATOR": "EXXON"
+            }
+            """)
+        },
+            Rules = new[]
+            {
+            new DataQualityRule
+            {
+                Id = 3,
+                Active = "Y",
+                DataType = "WellBore",
+                DataAttribute = "OPERATOR",
+                RuleType = "Consistency",
+                RuleName = "Inconsistent operator",
+                RuleFunction = "Consistency",
+                RuleParameters = ""
+            }
+        }
+        };
+
+        var engine = new DataQualityEngine();
+        var report = await engine.EvaluateAsync(request);
+
+        Assert.Empty(report.Findings);
+        Assert.Single(report.RuleErrors);
+
+        var ruleError = report.RuleErrors[0];
+
+        Assert.Equal(3, ruleError.RuleId);
+        Assert.Contains("duplicate UWI", ruleError.Message);
+    }
+
+
+    [Fact]
+    public async Task EvaluateAsync_ConsistencyReferenceAttributeMissing_ReturnsRuleError()
+    {
+        var request = new DataQualityEvaluationRequest
+        {
+            DataType = "WellBore",
+            Records = new[]
+            {
+            CreateRecord("""
+            {
+                "UWI": "1001",
+                "OPERATOR": "CHEVRON"
+            }
+            """)
+        },
+            ReferenceRecords = new[]
+            {
+            CreateRecord("""
+            {
+                "UWI": "1001"
+            }
+            """)
+        },
+            Rules = new[]
+            {
+            new DataQualityRule
+            {
+                Id = 3,
+                Active = "Y",
+                DataType = "WellBore",
+                DataAttribute = "OPERATOR",
+                RuleType = "Consistency",
+                RuleName = "Inconsistent operator",
+                RuleFunction = "Consistency",
+                RuleParameters = ""
+            }
+        }
+        };
+
+        var engine = new DataQualityEngine();
+        var report = await engine.EvaluateAsync(request);
+
+        Assert.Empty(report.Findings);
+        Assert.Single(report.RuleErrors);
+        Assert.Contains("OPERATOR", report.RuleErrors[0].Message);
+    }
+
+
+
+    private static JsonElement CreateRecord(string json)
+    {
+        using var document = JsonDocument.Parse(json);
+        return document.RootElement.Clone();
+    }
+
 }
 

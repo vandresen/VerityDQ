@@ -1,6 +1,9 @@
 <Solution>
-  <Project Path="VerityDQ.Core/VerityDQ.Core.csproj" />
+  <Folder Name="/Solution Items/">
+    <File Path="README.md" />
+  </Folder>
   <Project Path="VerityDQ.Application/VerityDQ.Application.csproj" />
+  <Project Path="VerityDQ.Core/VerityDQ.Core.csproj" />
   <Project Path="VerityDQ.Tests/VerityDQ.Tests.csproj" />
   <Project Path="VerityDQ/VerityDQ.csproj" />
 </Solution>

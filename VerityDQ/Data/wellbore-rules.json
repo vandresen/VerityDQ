@@ -1,6 +1,6 @@
 [
   {
-    "id": 301,
+    "id": 1,
     "active": "Y",
     "dataType": "WellBore",
     "dataAttribute": "GROUND_ELEV",
@@ -14,7 +14,35 @@
     "ruleFilter": ""
   },
   {
-    "id": 149,
+    "id": 2,
+    "active": "Y",
+    "dataType": "WellBore",
+    "dataAttribute": "GROUND_ELEV",
+    "ruleType": "Consistency",
+    "ruleName": "Inconsistent ground elevation",
+    "ruleDescription": "Ground elevation must equal to refernce source.",
+    "ruleFunction": "Consistency",
+    "ruleKey": "O1",
+    "keyNumber": 1,
+    "ruleParameters": "{Tolerance:0.0001}",
+    "ruleFilter": ""
+  },
+  {
+    "id": 3,
+    "active": "Y",
+    "dataType": "WellBore",
+    "dataAttribute": "OPERATOR",
+    "ruleType": "Consistency",
+    "ruleName": "Inconsistent operator",
+    "ruleDescription": "Operator must equal to reference source.",
+    "ruleFunction": "Consistency",
+    "ruleKey": "O2",
+    "keyNumber": 2,
+    "ruleParameters": "",
+    "ruleFilter": ""
+  },
+  {
+    "id": 200,
     "active": "Y",
     "dataType": "WellBore",
     "dataAttribute": "DEPTH_DATUM_ELEV",

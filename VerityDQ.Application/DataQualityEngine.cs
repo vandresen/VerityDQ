@@ -18,7 +18,8 @@ public sealed class DataQualityEngine : IDataQualityEngine
             {
                 ["Completeness"] = DataQualityDimension.Completeness,
                 ["Uniqueness"] = DataQualityDimension.Uniqueness,
-                ["ValidityRange"] = DataQualityDimension.Validity
+                ["ValidityRange"] = DataQualityDimension.Validity,
+                ["Consistency"] = DataQualityDimension.Consistency
             };
 
     public Task<DataQualityReport> EvaluateAsync(
@@ -75,6 +76,10 @@ public sealed class DataQualityEngine : IDataQualityEngine
 
                 case "VALIDITYRANGE":
                     EvaluateValidityRange(
+                        request, rule, findings, ruleErrors, cancellationToken);
+                    break;
+                case "CONSISTENCY":
+                    EvaluateConsistency(
                         request, rule, findings, ruleErrors, cancellationToken);
                     break;
             }
@@ -462,6 +467,141 @@ public sealed class DataQualityEngine : IDataQualityEngine
         }
     }
 
+    private static void EvaluateConsistency(
+        DataQualityEvaluationRequest request,
+        DataQualityRule rule,
+        List<DataQualityFinding> findings,
+        List<DataQualityRuleError> ruleErrors,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(rule.DataAttribute))
+        {
+            ruleErrors.Add(new DataQualityRuleError(
+                RuleId: rule.Id,
+                RuleName: rule.RuleName,
+                RuleFunction: rule.RuleFunction,
+                Message: "Consistency rule requires a DataAttribute."));
+
+            return;
+        }
+
+        if (request.ReferenceRecords.Count == 0)
+        {
+            ruleErrors.Add(new DataQualityRuleError(
+                RuleId: rule.Id,
+                RuleName: rule.RuleName,
+                RuleFunction: rule.RuleFunction,
+                Message: "Consistency evaluation requires reference records."));
+
+            return;
+        }
+
+        // Build a reference lookup using UWI.
+        var referenceByUwi =
+            new Dictionary<string, JsonElement>(StringComparer.Ordinal);
+
+        foreach (JsonElement referenceRecord in request.ReferenceRecords)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            string? uwi = GetRecordIdentifier(referenceRecord);
+
+            if (string.IsNullOrWhiteSpace(uwi))
+                continue;
+
+            if (!referenceByUwi.TryAdd(uwi, referenceRecord))
+            {
+                ruleErrors.Add(new DataQualityRuleError(
+                    RuleId: rule.Id,
+                    RuleName: rule.RuleName,
+                    RuleFunction: rule.RuleFunction,
+                    Message: $"Reference data contains duplicate UWI '{uwi}'."));
+
+                return;
+            }
+        }
+
+        // Numeric comparisons require a tolerance.
+        double tolerance = 0;
+
+        if (IsNumericAttribute(request.Records, rule.DataAttribute))
+        {
+            if (!TryParseTolerance(rule.RuleParameters, out tolerance))
+            {
+                ruleErrors.Add(new DataQualityRuleError(
+                    RuleId: rule.Id,
+                    RuleName: rule.RuleName,
+                    RuleFunction: rule.RuleFunction,
+                    Message:
+                        $"Invalid tolerance parameters '{rule.RuleParameters}'."));
+
+                return;
+            }
+        }
+
+        for (int i = 0; i < request.Records.Count; i++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            JsonElement record = request.Records[i];
+            string? uwi = GetRecordIdentifier(record);
+
+            if (string.IsNullOrWhiteSpace(uwi))
+            {
+                AddConsistencyFinding(
+                    request, rule, record, i, findings,
+                    "Primary record does not contain a UWI.");
+
+                continue;
+            }
+
+            if (!referenceByUwi.TryGetValue(uwi, out JsonElement referenceRecord))
+            {
+                AddConsistencyFinding(
+                    request, rule, record, i, findings,
+                    $"No reference record was found for UWI '{uwi}'.");
+
+                continue;
+            }
+
+
+            if (!record.TryGetProperty(
+                    rule.DataAttribute, out JsonElement primaryValue))
+            {
+                // Primary missing values are handled by Completeness.
+                continue;
+            }
+
+            if (!referenceRecord.TryGetProperty(
+                    rule.DataAttribute, out JsonElement referenceValue))
+            {
+                ruleErrors.Add(new DataQualityRuleError(
+                    RuleId: rule.Id,
+                    RuleName: rule.RuleName,
+                    RuleFunction: rule.RuleFunction,
+                    Message:
+                        $"Reference record for UWI '{uwi}' is missing " +
+                        $"attribute '{rule.DataAttribute}'."));
+
+                return;
+            }
+
+            if (IsConsistencySkipValue(primaryValue)
+                || IsConsistencySkipValue(referenceValue))
+            {
+                continue;
+            }
+
+            if (!ValuesAreConsistent(
+                primaryValue, referenceValue, tolerance))
+            {
+                AddConsistencyFinding(
+                    request, rule, record, i, findings,
+                    $"{rule.DataAttribute} differs from the reference value.");
+            }
+        }
+    }
+
     private static bool TryParseRange(
         string? parameters,
         out double minRange,
@@ -660,5 +800,127 @@ public sealed class DataQualityEngine : IDataQualityEngine
         }
 
         return GetValueAsString(uwi);
+    }
+
+    private static bool ValuesAreConsistent(
+    JsonElement primary,
+    JsonElement reference,
+    double tolerance)
+    {
+        if (primary.ValueKind == JsonValueKind.Number
+            && reference.ValueKind == JsonValueKind.Number)
+        {
+            if (!primary.TryGetDouble(out double primaryNumber)
+                || !reference.TryGetDouble(out double referenceNumber))
+            {
+                return false;
+            }
+
+            return Math.Abs(primaryNumber - referenceNumber) <= tolerance;
+        }
+
+        if (primary.ValueKind == JsonValueKind.String
+            && reference.ValueKind == JsonValueKind.String)
+        {
+            return string.Equals(
+                primary.GetString(),
+                reference.GetString(),
+                StringComparison.Ordinal);
+        }
+
+        return false;
+    }
+
+    private static bool IsConsistencySkipValue(JsonElement value)
+    {
+        if (value.ValueKind is JsonValueKind.Null
+            or JsonValueKind.Undefined)
+        {
+            return true;
+        }
+
+        if (value.ValueKind != JsonValueKind.String)
+            return false;
+
+        string text = value.GetString()?.Trim() ?? string.Empty;
+
+        return text.Equals("UNKNOWN", StringComparison.OrdinalIgnoreCase)
+            || text.Equals("NA", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool TryParseTolerance(
+        string? parameters,
+        out double tolerance)
+    {
+        tolerance = 0;
+
+        if (string.IsNullOrWhiteSpace(parameters))
+            return false;
+
+        string text = parameters.Trim();
+
+        if (text.StartsWith('{') && text.EndsWith('}'))
+            text = text[1..^1];
+
+        foreach (string item in text.Split(
+            ',', StringSplitOptions.RemoveEmptyEntries))
+        {
+            string[] parts = item.Split(
+                ':', 2, StringSplitOptions.TrimEntries);
+
+            if (parts.Length != 2
+                || !parts[0].Equals(
+                    "Tolerance", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            return double.TryParse(
+                    parts[1],
+                    NumberStyles.Float,
+                    CultureInfo.InvariantCulture,
+                    out tolerance)
+                && double.IsFinite(tolerance)
+                && tolerance >= 0;
+        }
+
+        return false;
+    }
+
+    private static void AddConsistencyFinding(
+        DataQualityEvaluationRequest request,
+        DataQualityRule rule,
+        JsonElement record,
+        int index,
+        List<DataQualityFinding> findings,
+        string description)
+    {
+        findings.Add(new DataQualityFinding(
+            RuleId: rule.Id.ToString(CultureInfo.InvariantCulture),
+            Title: rule.RuleName,
+            Description: string.IsNullOrWhiteSpace(rule.RuleDescription)
+                ? description
+                : $"{rule.RuleDescription} {description}",
+            Dimension: DataQualityDimension.Consistency,
+            Severity: "Error",
+            TableName: request.DataType,
+            RecordIndex: index,
+            RecordIdentifier: GetRecordIdentifier(record)));
+    }
+
+
+    private static bool IsNumericAttribute(IReadOnlyList<JsonElement> records, string attribute)
+    {
+        foreach (JsonElement record in records)
+        {
+            if (record.TryGetProperty(attribute, out JsonElement value)
+                && value.ValueKind is not JsonValueKind.Null
+                    and not JsonValueKind.Undefined)
+            {
+                return value.ValueKind == JsonValueKind.Number;
+            }
+        }
+
+        return false;
     }
 }

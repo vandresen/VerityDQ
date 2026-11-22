@@ -47,11 +47,19 @@
         <MudItem xs="12" md="7">
             <DataSourcePanel OnFileSelected="LoadDataFile"
                              OnLoadFromPPDM="LoadFromPPDM"
+                             OnReferenceFileSelected="LoadReferenceFile"
+                             OnLoadReferenceFromPPDM="LoadReferenceFromPPDM"
+                             OnClearReferenceData="ClearReferenceData"
                              IsLoadingDatabase="@isLoadingDatabase"
+                             IsLoadingReferenceDatabase="@isLoadingReferenceDatabase"
                              FileName="@fileName"
                              RecordCount="@(records?.Count)"
+                             ReferenceFileName="@referenceFileName"
+                             ReferenceRecordCount="@(referenceRecords?.Count)"
                              Message="@message"
                              DatabaseMessage="@databaseMessage"
+                             ReferenceMessage="@referenceMessage"
+                             ReferenceMessageSeverity="@referenceMessageSeverity"
                              DatabaseMessageSeverity="@databaseMessageSeverity" />
         </MudItem>
 
@@ -143,6 +151,13 @@
     private string? databaseMessage;
     private Severity databaseMessageSeverity = Severity.Info;
 
+    private List<JsonElement>? referenceRecords;
+    private string? referenceFileName;
+    private string? referenceMessage;
+    private Severity referenceMessageSeverity = Severity.Info;
+
+    private bool isLoadingReferenceDatabase;
+
     private const string SettingsKey = "VerityDQ.UserSettings";
 
     protected override async Task OnInitializedAsync()
@@ -160,6 +175,7 @@
 
     private async Task LoadDataFile(InputFileChangeEventArgs e)
     {
+        ResetReferenceData();
         ResetEvaluationState();
 
         records = null;
@@ -221,6 +237,7 @@
             {
                 DataType = "WellBore",
                 Records = records,
+                ReferenceRecords = referenceRecords ?? new List<JsonElement>(),
                 Rules = rules
             };
 
@@ -309,6 +326,7 @@
 
     private async Task LoadFromPPDM()
     {
+        ResetReferenceData();
         ResetEvaluationState();
 
         isLoadingDatabase = true;
@@ -385,6 +403,212 @@
         }
     }
 
-    
+    private async Task LoadReferenceFromPPDM()
+    {
+        if (isLoadingReferenceDatabase || isLoadingDatabase)
+            return;
+
+        ResetReferenceData();
+        if (isLoadingReferenceDatabase)
+            return;
+
+        ResetEvaluationState();
+
+        referenceRecords = null;
+        referenceFileName = null;
+        referenceMessage = null;
+        referenceMessageSeverity = Severity.Info;
+
+        isLoadingReferenceDatabase = true;
+
+        try
+        {
+            // Primary records must already be loaded.
+            if (records is null || records.Count == 0)
+            {
+                throw new InvalidOperationException(
+                    "Load the primary WellBore records before loading reference data.");
+            }
+
+            var settings = await LocalStorage
+                .GetItemAsync<UserConnectionSettings>(SettingsKey);
+
+            if (settings is null)
+            {
+                throw new InvalidOperationException(
+                    "Please configure the reference database in Settings.");
+            }
+
+            if (string.IsNullOrWhiteSpace(settings.ReferenceServer) ||
+                string.IsNullOrWhiteSpace(settings.ReferenceDatabase))
+            {
+                throw new InvalidOperationException(
+                    "Reference SQL Server and database are required. Please configure them in Settings.");
+            }
+
+            // Extract distinct UWIs from the primary records.
+            var uwis = records
+                .Select(GetUwi)
+                .Where(uwi => !string.IsNullOrWhiteSpace(uwi))
+                .Select(uwi => uwi!)
+                .Distinct(StringComparer.Ordinal)
+                .ToList();
+
+            if (uwis.Count == 0)
+            {
+                throw new InvalidOperationException(
+                    "No UWI values were found in the primary records.");
+            }
+
+            // Build the reference database connection.
+            var connectionBuilder =
+                new Microsoft.Data.SqlClient.SqlConnectionStringBuilder
+                {
+                    DataSource = settings.ReferenceServer,
+                    InitialCatalog = settings.ReferenceDatabase,
+                    TrustServerCertificate = settings.ReferenceTrustServerCertificate,
+                    Encrypt = true,
+                    ConnectTimeout = 15
+                };
+
+            if (settings.ReferenceAuthenticationType == "Windows")
+            {
+                connectionBuilder.IntegratedSecurity = true;
+            }
+            else
+            {
+                if (string.IsNullOrWhiteSpace(settings.ReferenceUserName) ||
+                    string.IsNullOrWhiteSpace(settings.ReferencePassword))
+                {
+                    throw new InvalidOperationException(
+                        "Reference database username and password are required.");
+                }
+
+                connectionBuilder.UserID = settings.ReferenceUserName;
+                connectionBuilder.Password = settings.ReferencePassword;
+            }
+
+            // Retrieve only records matching the primary UWIs.
+            var loadedRecords =
+                await WellBoreDataProvider.GetWellBoresByUwiAsync(
+                    connectionBuilder.ConnectionString,
+                    uwis);
+
+            referenceRecords = loadedRecords.ToList();
+
+            // Determine how many primary UWIs were not found.
+            var referenceUwis = referenceRecords
+                .Select(GetUwi)
+                .Where(uwi => !string.IsNullOrWhiteSpace(uwi))
+                .ToHashSet(StringComparer.Ordinal);
+
+            var missingCount = uwis.Count(
+                uwi => !referenceUwis.Contains(uwi));
+
+            referenceMessage =
+                $"Loaded {referenceRecords.Count:N0} reference records " +
+                $"for {uwis.Count:N0} primary UWIs from " +
+                $"{settings.ReferenceDatabase}.dbo.WELL. " +
+                $"{missingCount:N0} primary UWIs were not found.";
+
+            referenceMessageSeverity = missingCount == 0
+                ? Severity.Success
+                : Severity.Warning;
+        }
+        catch (Exception ex)
+        {
+            referenceRecords = null;
+            referenceMessage = $"Reference database loading failed: {ex.Message}";
+            referenceMessageSeverity = Severity.Error;
+        }
+        finally
+        {
+            isLoadingReferenceDatabase = false;
+        }
+    }
+
+    private async Task LoadReferenceFile(InputFileChangeEventArgs e)
+    {
+        ResetEvaluationState();
+        ResetReferenceData();
+
+        try
+        {
+            await using var stream = e.File.OpenReadStream(MaxFileSize);
+
+            using var document = await JsonDocument.ParseAsync(stream);
+
+            if (document.RootElement.ValueKind != JsonValueKind.Array)
+            {
+                referenceMessage = "Expected a JSON array of records.";
+                referenceMessageSeverity = Severity.Error;
+                return;
+            }
+
+            referenceRecords = document.RootElement
+                .EnumerateArray()
+                .Select(record => record.Clone())
+                .ToList();
+
+            referenceFileName = e.File.Name;
+
+            ResetEvaluationState();
+
+            referenceMessage =
+                $"Successfully loaded {referenceRecords.Count:N0} reference records.";
+
+            referenceMessageSeverity = Severity.Success;
+        }
+        catch (Exception ex) when (
+            ex is JsonException ||
+            ex is IOException ||
+            ex is InvalidOperationException)
+        {
+            referenceMessage = ex.Message;
+            referenceMessageSeverity = Severity.Error;
+        }
+    }
+
+    private void ClearReferenceData()
+    {
+        referenceRecords = null;
+        referenceFileName = null;
+        referenceMessage = "Reference data cleared.";
+        referenceMessageSeverity = Severity.Info;
+
+        ResetEvaluationState();
+    }
+
+    private static string? GetUwi(JsonElement record)
+    {
+        if (record.ValueKind != JsonValueKind.Object)
+            return null;
+
+        foreach (var property in record.EnumerateObject())
+        {
+            if (!string.Equals(
+                    property.Name,
+                    "UWI",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (property.Value.ValueKind == JsonValueKind.String)
+                return property.Value.GetString();
+
+            return null;
+        }
+
+        return null;
+    }
+
+    private void ResetReferenceData()
+    {
+        referenceRecords = null;
+        referenceFileName = null;
+        referenceMessage = null;
+        referenceMessageSeverity = Severity.Info;
+    }
 
 }

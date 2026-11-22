@@ -7,5 +7,10 @@ namespace VerityDQ.Application.Abstractions
         Task<IReadOnlyList<JsonElement>> GetWellBoresAsync(
             string connectionString,
             CancellationToken cancellationToken = default);
+
+        Task<IReadOnlyList<JsonElement>> GetWellBoresByUwiAsync(
+            string connectionString,
+            IReadOnlyCollection<string> uwis,
+            CancellationToken cancellationToken = default);
     }
 }
